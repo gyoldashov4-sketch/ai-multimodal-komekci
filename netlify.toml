@@ -1,15 +1,8 @@
 [build]
-  # 1. Netlify bu katalogdan başlaýar
   base = "frontend/"
-  
-  # 2. Base directory saýlanany üçin, Neşir katalogyna diňe 'build' ýazmaly
   publish = "build" 
-  
-  # 3. Gurma komandasy dogry
   command = "npm run build"
   
-# Netlify Functions (Backend) konfigurasiýasy
 [functions]
-  # 4. Bu ýerde hem, Base directory saýlanany üçin diňe 'functions' ýazmaly
   directory = "functions"
   node_bundler = "esbuild"
