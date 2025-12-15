@@ -26,7 +26,7 @@ API_URL = f"https://api-inference.huggingface.co/models/{HUGGING_FACE_MODEL}"
 # ⚠️ HUGGING FACE API AÇARY (TOKEN)
 # Siziň API açaryňyz (Token) diňe şu ýerde ulanylmaly
 # API açaryny başga hiç kim bilen paýlaşmaň
-HUGGING_FACE_API_KEY = "36dvAV3SheTbPZRkGhzsFbESxKo_2tTSREgoUmhYgBEyiDj3r" 
+HUGGING_FACE_API_KEY = "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" 
 
 headers = {
     "Authorization": f"Bearer {HUGGING_FACE_API_KEY}"
