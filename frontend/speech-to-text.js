@@ -1,63 +1,59 @@
-// Netlify Functions bilen Hugging Face Inference API-ny çagyrmak
-const fetch = require('node-fetch');
+// frontend/functions/speech-to-text.js
 
-// Hugging Face API URL-i (Türkmen dili modeli)
-const API_URL = "https://api-inference.huggingface.co/models/Sunbird/asr-whisper-large-v3-salt";
+import { HfInference } from '@huggingface/inference';
 
-// Backend funksiýasy (Netlify tarapyndan awtomatiki ýerleşdirilýär)
+// Hugging Face API açary Netlify Environment Variables-dan alynýar
+const HF_ACCESS_TOKEN = process.env.HF_API_KEY; 
+const hf = new HfInference(HF_ACCESS_TOKEN);
+
+// Türkmen dili üçin uly ASR modeli
+const ASR_MODEL = 'Turkmen-ASR/wav2vec2-large-xlsr-turkish-Turkmen-mixed';
+
 exports.handler = async (event) => {
-    
-    // API Açaryny Daşky Gurşaw Üýtgeýjisinden (Netlify-dan) al
-    const HUGGING_FACE_API_KEY = process.env.HF_API_KEY;
-
-    if (!HUGGING_FACE_API_KEY) {
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: "HF_API_KEY daşky gurşawda sazlanmady." }),
-        };
-    }
-
+    // Diňe POST soraglaryny kabul etmeli
     if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Diňe POST rugsat berilýär' };
+        return {
+            statusCode: 405,
+            body: JSON.stringify({ error: 'Diňe POST rugsat berilýär.' }),
+        };
     }
 
     try {
-        // Ses faýlyny (base64 görnüşinde) Body-dan alyň
-        const audioBuffer = Buffer.from(event.body, 'base64');
+        // Gelen ses faýlyny (event.body) alyň
+        const audioBlob = event.body;
 
-        // Hugging Face API-na sorag ibermek
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                "Authorization": `Bearer ${HUGGING_FACE_API_KEY}`,
-                "Content-Type": "audio/webm; codecs=opus" // Wajyp: Netlify audio faýl hökmünde tanamalydyr
-            },
-            body: audioBuffer,
-        });
-
-        if (!response.ok) {
-            // Hugging Face ýalňyşlyk berse
-            const errorText = await response.text();
+        if (!audioBlob) {
             return {
-                statusCode: response.status,
-                body: JSON.stringify({ error: `Hugging Face API-den Ýalňyşlyk: ${errorText}` }),
+                statusCode: 400,
+                body: JSON.stringify({ error: 'Ses faýly tapylmady.' }),
             };
         }
 
-        const result = await response.json();
-        
-        // Netijäni Frontend-e gaýtarmak
+        // 1. Suraty Düşündirmek üçin Inference çagyryşy
+        const result = await hf.automaticSpeechRecognition({
+            model: ASR_MODEL,
+            data: Buffer.from(audioBlob, event.isBase64Encoded ? 'base64' : 'binary'),
+        });
+
+        // 2. Netijäni yzyna gaýtarmak
+        const transcription = result.text;
+
         return {
             statusCode: 200,
-            body: JSON.stringify({ 
-                transcription: result[0]?.text || 'Transkript tapylmady.',
-            }),
+            body: JSON.stringify({ transcription: transcription }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
         };
-
     } catch (error) {
+        console.error('ASR API ýalňyşlygy:', error);
+        
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: "Funksiýany işlemekde kynçylyk: " + error.message }),
+            body: JSON.stringify({ 
+                error: 'Ses transkripsiýasynda ýalňyşlyk.', 
+                details: error.message 
+            }),
         };
     }
 };
