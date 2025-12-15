@@ -1,80 +1,72 @@
-import React, { useState } from 'react'; // state ulanmak üçin goşuldy
+import React, { useState, useRef } from 'react';
 import './App.css'; 
 
-// 🚨 TÄZE NETLIFY FUNCTION API ADRESI
-// Bu Netlify Functions tarapyndan awtomatiki ýerleşdirilen funksiýanyň adresidir.
-// Ol dogry işleýändigine göz ýetirmeli!
-const API_ENDPOINT = "/.netlify/functions/speech-to-text"; 
+// Netlify Functions API EndPoints
+const ASR_API_ENDPOINT = "/.netlify/functions/speech-to-text";
+const VISION_API_ENDPOINT = "/.netlify/functions/vision-analysis"; // GÖZLEME FUNKSIÝASY
 
 function App() {
-    // State-ler:
-    const [isRecording, setIsRecording] = useState(false); // Ýazgy ýagdaýy
-    const [transcription, setTranscription] = useState("Transkripsiýa şu ýerde peýda bolar..."); // Transkripsiýa teksti
-    const [error, setError] = useState(null); // Ýalňyşlyk habarlary
-
-    let mediaRecorder = null; // MediaRecorder obýekti (ses ýazmak üçin)
-    let audioChunks = []; // Ses bölekleri
-
-    // --- Ses Ýazgysyny Dolandyrmak Funksiýalary ---
+    // --- SES (ASR) STATE ---
+    const [isRecording, setIsRecording] = useState(false);
+    const [asrResult, setAsrResult] = useState("Ses transkripsiýasy bu ýerde peýda bolar...");
     
-    // Ses ýazgysyny başlatmak
+    // --- GÖZLEME (VISION) STATE ---
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [visionResult, setVisionResult] = useState("Surat düşündirişi bu ýerde peýda bolar...");
+    const fileInputRef = useRef(null); // Surat faýlyny saýlamak üçin
+    
+    // --- UMUMY STATE ---
+    const [error, setError] = useState(null); 
+    const [activeModule, setActiveModule] = useState('none'); // 'asr' ýa-da 'vision'
+
+    let mediaRecorder = null; 
+    let audioChunks = []; 
+
+    // --- SES ÝAZGYSYNY DOLANDYRMAK ---
+    // (Ses funksiýalaryny sadalaşdyrýaryn, sebäbi olar eýýäm bardy)
     const startRecording = async () => {
-        setError(null);
-        setTranscription("Ses ýazgysyna başladyňyz... Ýazgy üçin gürläň.");
-        setIsRecording(true);
-        audioChunks = [];
-
-        try {
-            // Mikrofona rugsat almak
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            // MediaRecorder obýektini gurmak
-            mediaRecorder = new MediaRecorder(stream);
-
-            // Ses datasy gelende
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-
-            // Ses ýazgysy tamamlananda
-            mediaRecorder.onstop = async () => {
-                // Ýazylan ses böleklerini birleşdirmek
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus' });
-                stream.getTracks().forEach(track => track.stop()); // Mikrofony ýapmak
-                
-                // API-na ugratmak
-                await sendAudioToAPI(audioBlob);
-            };
-
-            mediaRecorder.start(); // Ýazgy prosesini başlatmak
-
-        } catch (err) {
-            console.error("Mikrofona girip bilmedik:", err);
-            setError("Mikrofona rugsat bermediňiz ýa-da ol elýeterli däl.");
-            setIsRecording(false);
-        }
+        // ... (Kynçylyksyz işläp başlaýan ASR kody) ...
     };
 
-    // Ses ýazgysyny tamamlamak
     const stopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            setIsRecording(false);
-            setTranscription("Ýazgy tamamlandy. Transkripsiýa üçin garaşyň...");
+        // ... (Kynçylyksyz işläp başlaýan ASR kody) ...
+    };
+
+    const sendAudioToAPI = async (audioBlob) => {
+        // ... (Kynçylyksyz işläp başlaýan ASR kody, ASR_API_ENDPOINT ulanar) ...
+    };
+
+
+    // --- GÖZLEME FUNKSIÝASYNY DOLANDYRMAK ---
+    
+    // Faýl saýlamak düwmesine basylanda
+    const triggerFileInput = () => {
+        fileInputRef.current.click();
+        setActiveModule('vision');
+        setError(null);
+        setVisionResult("Surat düşündirişi bu ýerde peýda bolar...");
+    };
+
+    // Surat saýlanylanda
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            analyzeImage(file);
         }
     };
 
-    // Ses faýlyny Netlify Function-a ugratmak
-    const sendAudioToAPI = async (audioBlob) => {
+    // Suraty Vision API-na ugratmak
+    const analyzeImage = async (file) => {
+        setIsAnalyzing(true);
+        setVisionResult("Surat analiz edilýär... Garaşyň.");
+        
         try {
-            const response = await fetch(API_ENDPOINT, {
+            const response = await fetch(VISION_API_ENDPOINT, {
                 method: 'POST',
-                // Netlify Functions ses datalaryny almalydyr
-                // Biz audioBlob-y göni ugradýarys
-                body: audioBlob,
+                // Göni surat faýlyny ugradýarys
+                body: file,
                 headers: {
-                    'Content-Type': 'audio/webm; codecs=opus'
-                    // Hugging Face API açary serverde (Netlify Function-da) gizlin saklanýar
+                    'Content-Type': file.type || 'application/octet-stream', 
                 },
             });
 
@@ -84,20 +76,23 @@ function App() {
             }
 
             const data = await response.json();
-            setTranscription(data.transcription);
+            setVisionResult(data.description);
             setError(null);
 
         } catch (err) {
-            console.error("API çagyryş ýalňyşlygy:", err);
-            setTranscription("Transkripsiýa ýalňyşlygy.");
-            setError(`Ýalňyşlyk: ${err.message}. Netlify Function-yň we API açarynyň işleýändigini barlaň.`);
+            console.error("Vision API çagyryş ýalňyşlygy:", err);
+            setVisionResult("Analiz ýalňyşlygy.");
+            setError(`Vision ýalňyşlygy: ${err.message}.`);
+        } finally {
+            setIsAnalyzing(false);
         }
     };
 
-    // --- Görünýän Komponent ---
+
+    // --- KODUŇ GÖRNÜŞI (RETURN) ---
     return (
         <div className="App">
-            {/* 1. HEADER (Başlyk) */}
+            {/* 1. HEADER */}
             <header className="app-header">
                 <h1 className="logo">AI Kömekçi</h1>
                 <nav className="nav-menu">
@@ -107,20 +102,21 @@ function App() {
                 </nav>
             </header>
 
-            {/* 2. HERO SECTION (Esasy Bölüm) */}
+            {/* 2. HERO SECTION */}
             <main className="hero-section">
                 <h2>AI Multimodal Kömekçi Platformasyna Hoş Geldiňiz</h2>
-                <p>Elýeterliligiň täze derejesi: Ses, Görüş we Gest arkaly kömek.</p>
+                <p>Elýeterliligiň täze derejesi: Ses we Görüş arkaly kömek.</p>
                 
-                {/* Ýalňyşlyk we Status Habarlary */}
                 {error && <div className="status-message error">{error}</div>}
                 
                 <div className="button-container">
                     {/* ULY DÜWME 1: Sesli Kömek */}
                     <button 
-                        className={`main-button speech-button ${isRecording ? 'recording-active' : ''}`}
-                        onClick={isRecording ? stopRecording : startRecording}
-                        disabled={error !== null && !isRecording}
+                        className={`main-button speech-button ${activeModule === 'asr' ? (isRecording ? 'recording-active' : 'active') : ''}`}
+                        onClick={() => {
+                            if (activeModule !== 'asr') setActiveModule('asr');
+                            isRecording ? stopRecording() : startRecording();
+                        }}
                     >
                         <span role="img" aria-label="Microphone">
                             {isRecording ? '🔴' : '🎤'}
@@ -129,23 +125,54 @@ function App() {
                         {isRecording ? 'Ýazgyny Düzmek...' : 'Sesli Kömek (ASR)'}
                     </button>
 
-                    {/* ULY DÜWME 2: Görüş Kömekçi (Häzirki wagtda işlemeýär) */}
-                    <button className="main-button vision-button" onClick={() => alert("Görüş Modulyny soňra goşarys!")}>
-                        <span role="img" aria-label="Eye">👁️</span>
+                    {/* ULY DÜWME 2: Görüş Kömekçi */}
+                    <button 
+                        className={`main-button vision-button ${activeModule === 'vision' ? (isAnalyzing ? 'analyzing-active' : 'active') : ''}`}
+                        onClick={triggerFileInput}
+                        disabled={isAnalyzing}
+                    >
+                        <span role="img" aria-label="Eye">
+                            {isAnalyzing ? '⏳' : '👁️'}
+                        </span>
                         <br />
-                        Görüş Kömekçi (OCR/Düşündiriş)
+                        {isAnalyzing ? 'Analiz Edilýär...' : 'Görüş Kömekçi (VLM)'}
                     </button>
                 </div>
                 
-                {/* 3. Transkripsiýa Netijesi Bölümi */}
-                <div className="transcription-result">
-                    <h3>Transkripsiýa Netijesi:</h3>
-                    <p className="transcription-text">{transcription}</p>
+                {/* 3. NETIJE BÖLÜMLERI */}
+                <div className="result-container">
+                    {activeModule === 'asr' && (
+                        <div className="transcription-result">
+                            <h3>Ses Transkripsiýa Netijesi:</h3>
+                            <p className="result-text">{asrResult}</p>
+                        </div>
+                    )}
+
+                    {activeModule === 'vision' && (
+                         <div className="transcription-result">
+                            <h3>Surat Analiz Netijesi:</h3>
+                            <p className="result-text">{visionResult}</p>
+                        </div>
+                    )}
+                    {activeModule === 'none' && (
+                         <div className="transcription-result">
+                            <p className="result-text">Funksiýany saýlaň (Ses ýa-da Görüş) we ulanyp başlaň.</p>
+                        </div>
+                    )}
                 </div>
+                
+                {/* Gizlin Faýl Inputy */}
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    ref={fileInputRef} 
+                    style={{ display: 'none' }} 
+                    onChange={handleFileChange}
+                />
                 
             </main>
 
-            {/* 4. FOOTER (Aýak) */}
+            {/* 4. FOOTER */}
             <footer className="app-footer">
                 <p>© 2025 AI Kömekçi. Ähli hukuklar goralandyr.</p>
                 <div className="sdg-icons">
@@ -159,3 +186,4 @@ function App() {
 }
 
 export default App;
+// (Görnüş üçin 'startRecording' we 'stopRecording' funksiýalary sadalaşdyryldy. Siz soňky işlän kodyňyzy ulanmaly)
