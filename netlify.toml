@@ -1,0 +1,12 @@
+[build]
+  # Front-end kody front-end katalogynyň içinde gurulýar
+  base = "frontend/"
+  publish = "frontend/build"
+  command = "npm run build"
+  
+# Netlify Functions (Backend) konfigurasiýasy
+[functions]
+  # Funksiýalarımızıň kody nirede ýerleşýär
+  directory = "frontend/functions"
+  # Bu, Netlify-a funksiýalary işlemek üçin Node.js ulanmalydygyny aýdýar
+  node_bundler = "esbuild"
